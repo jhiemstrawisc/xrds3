@@ -338,6 +338,9 @@ bool AmazonRequest::createV4Signature(	const std::string & payload,
 	std::string saKey;
 	std::string token;
 	if( ! readShortFile( this->secretKeyFile, saKey ) ) {
+		if (this->secretKeyFile.empty()) {
+			return true;
+		}
 		this->errorCode = "E_FILE_IO";
 		this->errorMessage = "Unable to read from secretkey file '" + this->secretKeyFile + "'.";
 		// dprintf( D_ALWAYS, "Unable to read secretkey file '%s', failing.\n", this->secretKeyFile.c_str() );
@@ -346,6 +349,9 @@ bool AmazonRequest::createV4Signature(	const std::string & payload,
 	trim( saKey );
 
 	if( ! readShortFile( this->accessKeyFile, keyID ) ) {
+		if (this->accessKeyFile.empty()) {
+			return true;
+		}
 		this->errorCode = "E_FILE_IO";
 		this->errorMessage = "Unable to read from accesskey file '" + this->accessKeyFile + "'.";
 		// dprintf( D_ALWAYS, "Unable to read accesskey file '%s', failing.\n", this->accessKeyFile.c_str() );
@@ -570,7 +576,9 @@ bool AmazonRequest::sendV4Request( const std::string & payload, bool sendContent
         // dprintf( D_ALWAYS, "Failed to create v4 signature.\n" );
         return false;
     }
-    headers[ "Authorization" ] = authorizationValue;
+	if (!authorizationValue.empty()) {
+ 		headers[ "Authorization" ] = authorizationValue;
+	}
 
     return sendPreparedRequest( protocol, serviceURL, payload );
 }
@@ -921,18 +929,31 @@ bool AmazonRequest::sendPreparedRequest(
     globalCurlThrottle.setDeadline( signatureTime, 300 );
     struct timespec liveline = globalCurlThrottle.getWhen();
     struct timespec deadline = globalCurlThrottle.getDeadline();
-    if( Throttle::difference( & liveline, & deadline ) < 0 ) {
-        // amazon_gahp_grab_big_mutex();
-        // dprintf( D_PERF_TRACE, "request #%d (%s): deadline would be exceeded\n", requestID, requestCommand.c_str() );
-        // failureCount = 0;
 
-        this->errorCode = "E_DEADLINE_WOULD_BE_EXCEEDED";
-        this->errorMessage = "Signature would have expired before next permissible time to use it.";
-        if( header_slist ) { curl_slist_free_all( header_slist ); }
+	/*
+	BEGIN_SECTION
 
-        pthread_mutex_unlock( & globalCurlMutex );
-        return false;
-    }
+	Disable this section for now, doesn't work NOAA's public bucket
+	because no access/secret keys are provided (nor are they expected)
+	*/
+
+    // if( Throttle::difference( & liveline, & deadline ) < 0 ) {
+    //     // amazon_gahp_grab_big_mutex();
+    //     // dprintf( D_PERF_TRACE, "request #%d (%s): deadline would be exceeded\n", requestID, requestCommand.c_str() );
+    //     // failureCount = 0;
+
+    //     this->errorCode = "E_DEADLINE_WOULD_BE_EXCEEDED";
+    //     this->errorMessage = "Signature would have expired before next permissible time to use it.";
+    //     if( header_slist ) { curl_slist_free_all( header_slist ); }
+
+    //     pthread_mutex_unlock( & globalCurlMutex );
+    //     return false;
+    // }
+
+	/*
+	END_SECTION
+	*/
+
 
 retry:
     // this->liveLine = globalCurlThrottle.getWhen();
